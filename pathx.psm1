@@ -44,6 +44,11 @@ function Edit-Path() {
             } elseif ($a -eq "reset") {
                 $cmd = "reset"
 
+            # } elseif ($a -eq "remove-duplicates" -or $a -eq "remove-dupes") {
+            #     $cmd = "remove-duplicates"
+            # } elseif ($a -eq "remove-missing") {
+            #     $cmd = "remove-missing"
+
             } elseif ($a -eq "user" -or $a -eq "u") {
                 $scope = "USER"
             } elseif ($a -eq "machine" -or $a -eq "m") {
@@ -173,6 +178,32 @@ function replacePathItem( [string]$newPath, [string]$dir, [string]$replwith, [bo
 
     $newPath = [string]::Join(";", $ar).Replace(";;", ";").Trim(";")
     return $newPath
+}
+
+function replaceInRegistry( [string]$dir, [string]$replwith, [string]$scope = "", [bool]$quiet = $false, [bool]$force = $false ) {
+        $scope = $scope.ToUpper()
+        if ($scope -eq "*" -or $scope -eq "USER" -or $scope -eq "MACHINE") {
+            if ($scope -eq "*" -or $scope -eq "USER") {
+                if ($quiet -eq $false) {
+                    Write-Host "  in hkcu"
+                }
+                $newpath = [Environment]::GetEnvironmentVariable("PATH", "User")
+                $newpath = replacePathItem $newpath $dir $replwith $quiet $force
+                [Environment]::SetEnvironmentVariable("PATH", $newpath, "User")
+            }
+            if ($scope -eq "*" -or $scope -eq "MACHINE") {
+                if ($quiet -eq $false) {
+                    Write-Host "  in hklm"
+                }
+                $newpath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+                $newpath = replacePathItem $newpath $dir $replwith $quiet $force
+                [Environment]::SetEnvironmentVariable("PATH", $newpath, "Machine")
+            }
+        } else {
+            if ($quiet -eq $false) {
+                Write-Host "**** ERROR: Invalid scope specified ('$scope'). Must be '*', 'User' or 'Machine'." -ForegroundColor "Red"
+            }
+        }
 }
 
 function findDirectoryIndex( [string]$paths, [string]$dir ) {
@@ -390,9 +421,6 @@ function enablePath( [string]$dir, [string]$scope = "", [bool]$quiet = $false, [
         $disabled = ($dir.Substring(0, 2) + "\DISABLED\" + $dir.Substring(2)).Replace("\\", "\").Trim("\")
     }
 
-    # Write-Host "dir=$dir"
-    # Write-Host "disabled=$disabled"
-
     if ($quiet -eq $false) {
         Write-Host "Enabling $dir" -ForegroundColor "Cyan"
         Write-Host "  in environment"
@@ -405,29 +433,7 @@ function enablePath( [string]$dir, [string]$scope = "", [bool]$quiet = $false, [
 
     # Update the PATH in the registry.
     if ($scope -ne "") {
-        $scope = $scope.ToUpper()
-        if ($scope -eq "*" -or $scope -eq "USER" -or $scope -eq "MACHINE") {
-            if ($scope -eq "*" -or $scope -eq "USER") {
-                if ($quiet -eq $false) {
-                    Write-Host "  in hkcu"
-                }
-                $newpath = [Environment]::GetEnvironmentVariable("PATH", "User")
-                $newpath = replacePathItem $newpath $disabled $dir $quiet $force
-                [Environment]::SetEnvironmentVariable("PATH", $newpath, "User")
-            }
-            if ($scope -eq "*" -or $scope -eq "MACHINE") {
-                if ($quiet -eq $false) {
-                    Write-Host "  in hklm"
-                }
-                $newpath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
-                $newpath = replacePathItem $newpath $disabled $dir $quiet $force
-                [Environment]::SetEnvironmentVariable("PATH", $newpath, "Machine")
-            }
-        } else {
-            if ($quiet -eq $false) {
-                Write-Host "**** ERROR: Invalid scope specified ('$scope'). Must be '*', 'User' or 'Machine'." -ForegroundColor "Red"
-            }
-        }
+        replaceInRegistry $disabled $dir $scope $quiet $force
     }
 }
 
@@ -441,9 +447,6 @@ function disablePath( [string]$dir, [string]$scope = "", [bool]$quiet = $false, 
     $dir = $dir.TrimEnd("\")
     $disabled = ($dir.Substring(0, 2) + "\DISABLED\" + $dir.Substring(2)).Replace("\\", "\").Trim("\")
 
-    # Write-Host "dir=$dir"
-    # Write-Host "disabled=$disabled"
-
     if ($quiet -eq $false) {
         Write-Host "Disabling $dir" -ForegroundColor "Cyan"
         Write-Host "  in environment"
@@ -456,30 +459,7 @@ function disablePath( [string]$dir, [string]$scope = "", [bool]$quiet = $false, 
 
     # Update the PATH in the registry.
     if ($scope -ne "") {
-        # replaceInRegistry $dir $disable $scope $quiet $force
-        $scope = $scope.ToUpper()
-        if ($scope -eq "*" -or $scope -eq "USER" -or $scope -eq "MACHINE") {
-            if ($scope -eq "*" -or $scope -eq "USER") {
-                if ($quiet -eq $false) {
-                    Write-Host "  in hkcu"
-                }
-                $newpath = [Environment]::GetEnvironmentVariable("PATH", "User")
-                $newpath = replacePathItem $newpath $dir $disabled $quiet $force
-                [Environment]::SetEnvironmentVariable("PATH", $newpath, "User")
-            }
-            if ($scope -eq "*" -or $scope -eq "MACHINE") {
-                if ($quiet -eq $false) {
-                    Write-Host "  in hklm"
-                }
-                $newpath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
-                $newpath = replacePathItem $newpath $dir $disabled $quiet $force
-                [Environment]::SetEnvironmentVariable("PATH", $newpath, "Machine")
-            }
-        } else {
-            if ($quiet -eq $false) {
-                Write-Host "**** ERROR: Invalid scope specified ('$scope'). Must be '*', 'User' or 'Machine'." -ForegroundColor "Red"
-            }
-        }
+        replaceInRegistry $dir $disabled $scope $quiet $force
     }
 }
 
